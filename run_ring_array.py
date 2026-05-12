@@ -91,6 +91,78 @@ def make_ring_array(n):
     return array_body
 
 
+def geometry_clearance_dataframe(array_sizes=SMOKE_TEST_ARRAY_SIZES):
+    """Compute probe clearances from cylinder footprints for diagnostic review.
+
+    Clearance is measured in the horizontal plane as the distance from each
+    fixed probe sample to the nearest cylinder center minus the cylinder radius.
+    Negative values identify samples inside a cylinder footprint. This helper
+    only reports geometry and does not alter any physical or normalization
+    parameters used by the diffraction smoke tests.
+    """
+    base_samples = [
+        {
+            "sample_type": "point",
+            "sample_label": label,
+            "sample_index": "",
+            "x": x,
+            "y": y,
+        }
+        for label, x, y in POINT_PROBES
+    ]
+    line_samples = [
+        {
+            "sample_type": "line",
+            "sample_label": line_name,
+            "sample_index": index,
+            "x": x,
+            "y": y,
+        }
+        for line_name, index, x, y in sampling_lines()
+    ]
+
+    records = []
+    for n in array_sizes:
+        centers = np.array(cylinder_centers(n), dtype=float)
+        for sample in base_samples + line_samples:
+            point = np.array((sample["x"], sample["y"]), dtype=float)
+            center_distances = np.linalg.norm(centers - point, axis=1)
+            nearest_index = int(np.argmin(center_distances))
+            nearest_distance = float(center_distances[nearest_index])
+            clearance = nearest_distance - CYLINDER_RADIUS
+            nearest_center_x, nearest_center_y = centers[nearest_index]
+
+            records.append(
+                {
+                    "array_size": n,
+                    **sample,
+                    "nearest_cylinder": nearest_index + 1,
+                    "nearest_center_x": nearest_center_x,
+                    "nearest_center_y": nearest_center_y,
+                    "nearest_center_distance": nearest_distance,
+                    "cylinder_radius": CYLINDER_RADIUS,
+                    "clearance": clearance,
+                    "inside_cylinder_footprint": clearance < 0.0,
+                }
+            )
+
+    return pd.DataFrame(records)
+
+
+def save_probe_geometry_clearance_check():
+    """Save a geometry-only probe clearance diagnostic CSV.
+
+    The generated file belongs under ``outputs/`` and is intentionally not
+    produced by ``main()`` so routine smoke tests do not create this diagnostic
+    unless it is requested explicitly.
+    """
+    ensure_output_dirs()
+    output_path = os.path.join(OUTPUT_DIR, "probe_geometry_clearance_check.csv")
+    geometry_clearance_dataframe().to_csv(output_path, index=False)
+    print(f"Saved probe geometry clearance check: {output_path}")
+    return output_path
+
+
 def compute_diffracted_elevation(points, solver, result):
     """Compute diffracted elevation, preserving rows for invalid samples.
 
