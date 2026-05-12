@@ -1,0 +1,12 @@
+name: capytaine-codex
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - capytaine
+  - numpy
+  - scipy
+  - matplotlib
+  - pandas
+  - xarray
+  - netcdf4
