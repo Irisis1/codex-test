@@ -1,0 +1,7 @@
+capytaine
+numpy
+scipy
+matplotlib
+pandas
+xarray
+netcdf4
