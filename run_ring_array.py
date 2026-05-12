@@ -5,8 +5,9 @@ import pandas as pd
 
 import capytaine as cpt
 from capytaine.bem.airy_waves import airy_waves_free_surface_elevation
-from capytaine.green_functions.abstract_green_function import GreenFunctionEvaluationError
-
+from capytaine.green_functions.abstract_green_function import (
+    GreenFunctionEvaluationError,
+)
 
 OUTPUT_DIR = "outputs"
 FIGURE_DIR = "figures"
@@ -27,6 +28,24 @@ SMOKE_TEST_ARRAY_SIZES = (4, 6, 8)
 SMOKE_TEST_PERIOD = 1.00
 
 
+CANDIDATE_LINE_COORDINATES = (
+    -0.40,
+    -0.35,
+    -0.30,
+    -0.25,
+    -0.20,
+    -0.15,
+    -0.10,
+    0.10,
+    0.15,
+    0.20,
+    0.25,
+    0.30,
+    0.35,
+    0.40,
+)
+
+
 POINT_PROBES = (
     ("P0", 0.0, 0.0),
     ("P1", 0.1, 0.0),
@@ -39,12 +58,16 @@ POINT_PROBES = (
 
 
 def sampling_lines():
-    """Return main and cross line probes for smoke-test sampling."""
+    """Return main and cross line probes for smoke-test sampling.
+
+    These line offsets are shared by the 4-, 6-, and 8-cylinder arrays and
+    keep all smoke-test samples at least 0.01 m from every cylinder footprint.
+    """
     main_x = np.linspace(-1.5, 1.5, 21)
     cross_y = np.linspace(-1.0, 1.0, 21)
 
-    main_line = [("main_line_y0p2", i, x, 0.2) for i, x in enumerate(main_x)]
-    cross_line = [("cross_line_x0p0", i, 0.0, y) for i, y in enumerate(cross_y)]
+    main_line = [("main_line_y0p1", i, x, 0.1) for i, x in enumerate(main_x)]
+    cross_line = [("cross_line_x0p4", i, 0.4, y) for i, y in enumerate(cross_y)]
     return main_line + cross_line
 
 
@@ -89,6 +112,21 @@ def make_ring_array(n):
 
     array_body.name = f"ring_{n}_cylinders"
     return array_body
+
+
+def clearance_status(clearance):
+    """Classify a clearance against the geometry-only safety thresholds."""
+    if clearance < 0.0:
+        return "unsafe"
+    if clearance < 0.01:
+        return "near_surface"
+    return "safe"
+
+
+def minimum_clearance_to_cylinders(points, centers):
+    """Return the minimum footprint clearance for samples against centers."""
+    center_distances = np.linalg.norm(points[:, np.newaxis, :] - centers, axis=2)
+    return float(np.min(center_distances) - CYLINDER_RADIUS)
 
 
 def geometry_clearance_dataframe(array_sizes=SMOKE_TEST_ARRAY_SIZES):
@@ -147,6 +185,75 @@ def geometry_clearance_dataframe(array_sizes=SMOKE_TEST_ARRAY_SIZES):
             )
 
     return pd.DataFrame(records)
+
+
+def candidate_line_clearance_dataframe(array_sizes=SMOKE_TEST_ARRAY_SIZES):
+    """Evaluate candidate safe horizontal and vertical measurement lines.
+
+    The check is geometry-only: horizontal lines use 61 samples from x=-1.5 m
+    to x=1.5 m, vertical lines use 61 samples from y=-1.0 m to y=1.0 m,
+    and the reported clearance is the minimum over all requested array sizes.
+    """
+    records = []
+
+    for y in CANDIDATE_LINE_COORDINATES:
+        points = np.column_stack((np.linspace(-1.5, 1.5, 61), np.full(61, y)))
+        per_array_clearance = {}
+        for n in array_sizes:
+            centers = np.array(cylinder_centers(n), dtype=float)
+            per_array_clearance[f"min_clearance_N{n}"] = minimum_clearance_to_cylinders(
+                points, centers
+            )
+        min_clearance = min(per_array_clearance.values())
+        records.append(
+            {
+                "line_type": "horizontal",
+                "line_label": f"y={y:+.2f}",
+                "fixed_coordinate": y,
+                "sample_axis": "x",
+                "sample_start": -1.5,
+                "sample_end": 1.5,
+                "sample_count": 61,
+                "min_clearance": min_clearance,
+                "status": clearance_status(min_clearance),
+                **per_array_clearance,
+            }
+        )
+
+    for x in CANDIDATE_LINE_COORDINATES:
+        points = np.column_stack((np.full(61, x), np.linspace(-1.0, 1.0, 61)))
+        per_array_clearance = {}
+        for n in array_sizes:
+            centers = np.array(cylinder_centers(n), dtype=float)
+            per_array_clearance[f"min_clearance_N{n}"] = minimum_clearance_to_cylinders(
+                points, centers
+            )
+        min_clearance = min(per_array_clearance.values())
+        records.append(
+            {
+                "line_type": "vertical",
+                "line_label": f"x={x:+.2f}",
+                "fixed_coordinate": x,
+                "sample_axis": "y",
+                "sample_start": -1.0,
+                "sample_end": 1.0,
+                "sample_count": 61,
+                "min_clearance": min_clearance,
+                "status": clearance_status(min_clearance),
+                **per_array_clearance,
+            }
+        )
+
+    return pd.DataFrame(records)
+
+
+def save_candidate_line_clearance_check():
+    """Save the geometry-only candidate line clearance diagnostic CSV."""
+    ensure_output_dirs()
+    output_path = os.path.join(OUTPUT_DIR, "candidate_line_clearance_check.csv")
+    candidate_line_clearance_dataframe().to_csv(output_path, index=False)
+    print(f"Saved candidate line clearance check: {output_path}")
+    return output_path
 
 
 def save_probe_geometry_clearance_check():
