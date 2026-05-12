@@ -3,14 +3,9 @@ import os
 import numpy as np
 import pandas as pd
 
-try:
-    import capytaine as cpt
-    from capytaine.bem.airy_waves import airy_waves_free_surface_elevation
-except ImportError as exc:
-    raise ImportError(
-        "Capytaine is not installed. Install dependencies with "
-        "`pip install -r requirements.txt` or use `environment.yml`."
-    ) from exc
+import capytaine as cpt
+from capytaine.bem.airy_waves import airy_waves_free_surface_elevation
+from capytaine.green_functions.abstract_green_function import GreenFunctionEvaluationError
 
 
 OUTPUT_DIR = "outputs"
@@ -28,6 +23,10 @@ RING_RADIUS = 0.30
 
 
 # Fixed probe definitions shared by all array sizes.
+SMOKE_TEST_ARRAY_SIZES = (4, 6, 8)
+SMOKE_TEST_PERIOD = 1.00
+
+
 POINT_PROBES = (
     ("P0", 0.0, 0.0),
     ("P1", 0.1, 0.0),
@@ -92,6 +91,30 @@ def make_ring_array(n):
     return array_body
 
 
+def compute_diffracted_elevation(points, solver, result):
+    """Compute diffracted elevation, preserving rows for invalid samples.
+
+    Some shared smoke-test line samples can fall inside a cylinder footprint for
+    a given array size. Those points are kept in the output with NaN diffracted
+    and total elevation values instead of changing the common probe definition.
+    """
+    try:
+        return solver.compute_free_surface_elevation(points, result)
+    except GreenFunctionEvaluationError:
+        eta_diffracted = np.full(len(points), np.nan + 1j * np.nan, dtype=complex)
+        for i, point in enumerate(points):
+            try:
+                eta_diffracted[i] = solver.compute_free_surface_elevation(
+                    point.reshape(1, 2), result
+                )[0]
+            except GreenFunctionEvaluationError:
+                print(
+                    "Warning: diffracted elevation is undefined at "
+                    f"x={point[0]:.6g}, y={point[1]:.6g}; writing NaN."
+                )
+        return eta_diffracted
+
+
 def free_surface_elevation_dataframe(samples, solver, result, problem):
     """Compute incident, diffracted, and total elevation for sample points.
 
@@ -104,7 +127,7 @@ def free_surface_elevation_dataframe(samples, solver, result, problem):
     points = np.array([(sample["x"], sample["y"]) for sample in samples], dtype=float)
 
     eta_diffracted = np.asarray(
-        solver.compute_free_surface_elevation(points, result), dtype=complex
+        compute_diffracted_elevation(points, solver, result), dtype=complex
     )
     eta_incident = np.asarray(
         airy_waves_free_surface_elevation(points, problem), dtype=complex
@@ -148,7 +171,7 @@ def line_probe_dataframe(solver, result, problem):
     return free_surface_elevation_dataframe(samples, solver, result, problem)
 
 
-def run_probe_smoke_test(n=4, period=1.00):
+def run_probe_smoke_test(n=4, period=SMOKE_TEST_PERIOD):
     """Run one fixed-body diffraction case and save free-surface probes."""
     ensure_output_dirs()
 
@@ -181,9 +204,19 @@ def run_probe_smoke_test(n=4, period=1.00):
     print(f"Saved point probes: {point_csv_path}")
     print(f"Saved line probes: {line_csv_path}")
 
+    return point_csv_path, line_csv_path
+
+
+def run_all_smoke_tests():
+    """Run small fixed-body diffraction smoke tests for all array sizes."""
+    output_paths = []
+    for n in SMOKE_TEST_ARRAY_SIZES:
+        output_paths.append(run_probe_smoke_test(n=n, period=SMOKE_TEST_PERIOD))
+    return output_paths
+
 
 def main():
-    run_probe_smoke_test(n=4, period=1.00)
+    run_all_smoke_tests()
 
 
 if __name__ == "__main__":
