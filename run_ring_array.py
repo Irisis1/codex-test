@@ -15,8 +15,25 @@ except ImportError as exc:
 OUTPUT_DIR = "outputs"
 FIGURE_DIR = "figures"
 
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs(FIGURE_DIR, exist_ok=True)
+
+def ensure_output_dirs():
+    """Create runtime directories for numerical outputs and figures."""
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(FIGURE_DIR, exist_ok=True)
+
+
+def force_abs_sum(forces):
+    """Return the sum of absolute diffraction-force entries.
+
+    Capytaine versions may expose forces either as an xarray object with a
+    ``values`` attribute or as a mapping with a ``values()`` method. Fixed-body
+    diffraction problems can also have no force entries.
+    """
+    values = forces.values
+    if callable(values):
+        values = list(values())
+    values = np.asarray(values)
+    return float(np.sum(np.abs(values))) if values.size else 0.0
 
 
 # Physical parameters
@@ -68,6 +85,8 @@ def make_ring_array(n):
 
 def run_smoke_test(n=4, periods=(1.00,)):
     """Run a small Capytaine smoke test."""
+    ensure_output_dirs()
+
     body = make_ring_array(n)
     solver = cpt.BEMSolver()
 
@@ -92,7 +111,7 @@ def run_smoke_test(n=4, periods=(1.00,)):
                 "N": n,
                 "period_s": period,
                 "omega_rad_s": omega,
-                "force_abs_sum": float(np.sum(np.abs(result.forces.values))),
+                "force_abs_sum": force_abs_sum(result.forces),
             }
         )
 
