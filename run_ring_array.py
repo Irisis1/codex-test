@@ -44,8 +44,8 @@ def sampling_lines():
     main_x = np.linspace(-1.5, 1.5, 21)
     cross_y = np.linspace(-1.0, 1.0, 21)
 
-    main_line = [("main", i, x, 0.2) for i, x in enumerate(main_x)]
-    cross_line = [("cross", i, 0.0, y) for i, y in enumerate(cross_y)]
+    main_line = [("main_line_y0p2", i, x, 0.2) for i, x in enumerate(main_x)]
+    cross_line = [("cross_line_x0p0", i, 0.0, y) for i, y in enumerate(cross_y)]
     return main_line + cross_line
 
 
