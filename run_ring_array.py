@@ -58,17 +58,18 @@ POINT_PROBES = (
 
 
 def sampling_lines():
-    """Return main and cross line probes for smoke-test sampling.
+    """Return the horizontal line probes for smoke-test sampling.
 
     These line offsets are shared by the 4-, 6-, and 8-cylinder arrays and
     keep all smoke-test samples at least 0.01 m from every cylinder footprint.
+    The vertical candidate ``cross_line_x0p4`` is intentionally not used as a
+    formal smoke-test output line.
     """
     main_x = np.linspace(-1.5, 1.5, 21)
-    cross_y = np.linspace(-1.0, 1.0, 21)
 
-    main_line = [("main_line_y0p1", i, x, 0.1) for i, x in enumerate(main_x)]
-    cross_line = [("cross_line_x0p4", i, 0.4, y) for i, y in enumerate(cross_y)]
-    return main_line + cross_line
+    main_line_y0p1 = [("main_line_y0p1", i, x, 0.1) for i, x in enumerate(main_x)]
+    main_line_ym0p1 = [("main_line_ym0p1", i, x, -0.1) for i, x in enumerate(main_x)]
+    return main_line_y0p1 + main_line_ym0p1
 
 
 def ensure_output_dirs():
