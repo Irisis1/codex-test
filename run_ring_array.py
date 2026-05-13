@@ -27,6 +27,14 @@ RING_RADIUS = 0.30
 SMOKE_TEST_ARRAY_SIZES = (4, 6, 8)
 SMOKE_TEST_PERIOD = 1.00
 
+MESH_DIAGNOSTIC_ARRAY_SIZE = 8
+MESH_LEVEL_RESOLUTIONS = {
+    "coarse": (8, 8, 3),
+    "base": (12, 12, 4),
+    "medium": (16, 16, 6),
+    "fine": (24, 24, 8),
+}
+
 
 CANDIDATE_LINE_COORDINATES = (
     -0.40,
@@ -84,13 +92,13 @@ def cylinder_centers(n, radius=RING_RADIUS):
     return [(radius * np.cos(theta), radius * np.sin(theta)) for theta in angles]
 
 
-def make_fixed_cylinder(x, y):
+def make_fixed_cylinder(x, y, resolution=MESH_LEVEL_RESOLUTIONS["base"]):
     """Create one fixed vertical circular cylinder."""
     mesh = cpt.mesh_vertical_cylinder(
         radius=CYLINDER_RADIUS,
         length=CYLINDER_DRAFT,
         center=(x, y, -CYLINDER_DRAFT / 2.0),
-        resolution=(12, 12, 4),
+        resolution=resolution,
     )
 
     body = cpt.FloatingBody(mesh=mesh)
@@ -98,12 +106,12 @@ def make_fixed_cylinder(x, y):
     return body
 
 
-def make_ring_array(n):
+def make_ring_array(n, resolution=MESH_LEVEL_RESOLUTIONS["base"]):
     """Create a fixed n-cylinder ring array."""
     bodies = []
 
     for i, (x, y) in enumerate(cylinder_centers(n)):
-        body = make_fixed_cylinder(x, y)
+        body = make_fixed_cylinder(x, y, resolution=resolution)
         body.name = f"cylinder_{i + 1}"
         bodies.append(body)
 
@@ -113,6 +121,49 @@ def make_ring_array(n):
 
     array_body.name = f"ring_{n}_cylinders"
     return array_body
+
+
+def mesh_diagnostics_dataframe(
+    n=MESH_DIAGNOSTIC_ARRAY_SIZE, mesh_level_resolutions=MESH_LEVEL_RESOLUTIONS
+):
+    """Build ring-array meshes and report geometry-only mesh statistics.
+
+    This diagnostic workflow intentionally does not instantiate a BEM solver,
+    define diffraction problems, or run any period sweep. It only builds fixed
+    N=8 ring-array meshes with alternate ``mesh_vertical_cylinder`` resolutions
+    and summarizes their panel counts and panel areas.
+    """
+    records = []
+
+    for mesh_level, cylinder_resolution in mesh_level_resolutions.items():
+        body = make_ring_array(n, resolution=cylinder_resolution)
+        mesh = body.mesh
+        panel_areas = np.asarray(mesh.faces_areas, dtype=float)
+
+        records.append(
+            {
+                "mesh_level": mesh_level,
+                "cylinder_resolution": "x".join(
+                    str(value) for value in cylinder_resolution
+                ),
+                "total_vertices": int(mesh.nb_vertices),
+                "total_faces": int(mesh.nb_faces),
+                "mean_panel_area": float(np.mean(panel_areas)),
+                "min_panel_area": float(np.min(panel_areas)),
+                "max_panel_area": float(np.max(panel_areas)),
+            }
+        )
+
+    return pd.DataFrame(records)
+
+
+def save_mesh_diagnostics_N8():
+    """Save the N=8 mesh diagnostics table without running BEM."""
+    ensure_output_dirs()
+    output_path = os.path.join(OUTPUT_DIR, "mesh_diagnostics_N8.csv")
+    mesh_diagnostics_dataframe().to_csv(output_path, index=False)
+    print(f"Saved N=8 mesh diagnostics: {output_path}")
+    return output_path
 
 
 def clearance_status(clearance):
@@ -396,7 +447,7 @@ def run_all_smoke_tests():
 
 
 def main():
-    run_all_smoke_tests()
+    save_mesh_diagnostics_N8()
 
 
 if __name__ == "__main__":
