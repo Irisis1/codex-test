@@ -393,6 +393,103 @@ def point_probe_dataframe(solver, result, problem):
     return free_surface_elevation_dataframe(samples, solver, result, problem)
 
 
+def mesh_convergence_dataframe(n=MESH_DIAGNOSTIC_ARRAY_SIZE, period=SMOKE_TEST_PERIOD):
+    """Run a single-period N=8 mesh-convergence smoke test.
+
+    The workflow keeps the fixed-body diffraction-only physics and the shared
+    point-probe definitions unchanged.  It runs only the requested array size
+    and period for the four configured mesh levels, then reports point-probe
+    elevations together with scalar convergence metrics referenced to the fine
+    mesh.
+    """
+    records = []
+    omega = 2.0 * np.pi / period
+
+    for mesh_level, cylinder_resolution in MESH_LEVEL_RESOLUTIONS.items():
+        body = make_ring_array(n, resolution=cylinder_resolution)
+        total_faces = int(body.mesh.nb_faces)
+        total_vertices = int(body.mesh.nb_vertices)
+
+        solver = cpt.BEMSolver()
+        problem = cpt.DiffractionProblem(
+            body=body,
+            omega=omega,
+            water_depth=WATER_DEPTH,
+            wave_direction=0.0,
+            rho=RHO,
+            g=G,
+        )
+
+        result = solver.solve(problem)
+        point_df = point_probe_dataframe(solver, result, problem)
+        total_abs_by_probe = point_df.set_index("probe")["total_abs"]
+
+        center_total_abs = total_abs_by_probe.loc[["P0", "P1", "P2", "P3", "P4"]]
+        front_abs = float(total_abs_by_probe.loc["front"])
+        rear_abs = float(total_abs_by_probe.loc["rear"])
+
+        record = {
+            "array_size": n,
+            "period": period,
+            "mesh_level": mesh_level,
+            "cylinder_resolution": "x".join(str(value) for value in cylinder_resolution),
+            "total_vertices": total_vertices,
+            "total_faces": total_faces,
+            "center_mean_abs": float(center_total_abs.mean()),
+            "center_max_abs": float(center_total_abs.max()),
+            "front_abs": front_abs,
+            "rear_abs": rear_abs,
+            "S_rear_front": rear_abs / front_abs,
+        }
+
+        for probe_record in point_df.to_dict("records"):
+            probe = probe_record["probe"]
+            for quantity in (
+                "incident_real",
+                "incident_imag",
+                "incident_abs",
+                "diffracted_real",
+                "diffracted_imag",
+                "diffracted_abs",
+                "total_real",
+                "total_imag",
+                "total_abs",
+            ):
+                record[f"{probe}_{quantity}"] = probe_record[quantity]
+
+        records.append(record)
+
+    df = pd.DataFrame(records)
+    fine_row = df.loc[df["mesh_level"] == "fine"].iloc[0]
+
+    df["error_center_mean_percent"] = (
+        (df["center_mean_abs"] - fine_row["center_mean_abs"]).abs()
+        / abs(fine_row["center_mean_abs"])
+        * 100.0
+    )
+    df["error_center_max_percent"] = (
+        (df["center_max_abs"] - fine_row["center_max_abs"]).abs()
+        / abs(fine_row["center_max_abs"])
+        * 100.0
+    )
+    df["error_S_percent"] = (
+        (df["S_rear_front"] - fine_row["S_rear_front"]).abs()
+        / abs(fine_row["S_rear_front"])
+        * 100.0
+    )
+
+    return df
+
+
+def save_mesh_convergence_N8_T1p00():
+    """Save the N=8, T=1.00 s mesh-convergence smoke-test CSV."""
+    ensure_output_dirs()
+    output_path = os.path.join(OUTPUT_DIR, "mesh_convergence_N8_T1p00.csv")
+    mesh_convergence_dataframe(n=8, period=1.00).to_csv(output_path, index=False)
+    print(f"Saved N=8 mesh convergence smoke test: {output_path}")
+    return output_path
+
+
 def line_probe_dataframe(solver, result, problem):
     """Compute the main and cross line free-surface elevations."""
     samples = [
