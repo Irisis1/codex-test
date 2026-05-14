@@ -35,6 +35,14 @@ MESH_LEVEL_RESOLUTIONS = {
     "fine": (24, 24, 8),
 }
 
+# Stage 4 formal mesh selection for the N=8 production period sweep.
+# The completed N=8 multi-period mesh-convergence results at T = 0.98,
+# 1.00, 1.02, 1.36, 1.38, and 1.40 s showed that the medium mesh differs
+# from the fine mesh by less than 2% for every representative period and key
+# metric, while coarse/base/fine remain available above for mesh-convergence use.
+FORMAL_MESH_LEVEL = "medium"
+FORMAL_MESH_RESOLUTION = MESH_LEVEL_RESOLUTIONS[FORMAL_MESH_LEVEL]
+
 MESH_CONVERGENCE_REPRESENTATIVE_PERIODS = (0.98, 1.00, 1.02, 1.36, 1.38, 1.40)
 
 
