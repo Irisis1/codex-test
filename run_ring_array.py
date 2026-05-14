@@ -35,6 +35,8 @@ MESH_LEVEL_RESOLUTIONS = {
     "fine": (24, 24, 8),
 }
 
+MESH_CONVERGENCE_REPRESENTATIVE_PERIODS = (0.98, 1.00, 1.02, 1.36, 1.38, 1.40)
+
 
 CANDIDATE_LINE_COORDINATES = (
     -0.40,
@@ -479,6 +481,47 @@ def mesh_convergence_dataframe(n=MESH_DIAGNOSTIC_ARRAY_SIZE, period=SMOKE_TEST_P
     )
 
     return df
+
+
+def mesh_convergence_representative_periods_dataframe(
+    n=MESH_DIAGNOSTIC_ARRAY_SIZE,
+    periods=MESH_CONVERGENCE_REPRESENTATIVE_PERIODS,
+):
+    """Run the N=8 mesh-convergence checks at representative periods.
+
+    This stage-3 workflow deliberately limits the BEM solves to the requested
+    representative periods, uses the existing four mesh levels, and preserves
+    all physical parameters plus fixed point-probe definitions. Error columns
+    are computed by ``mesh_convergence_dataframe`` against the fine mesh within
+    each individual period.
+    """
+    dataframes = [
+        mesh_convergence_dataframe(n=n, period=period) for period in periods
+    ]
+    return pd.concat(dataframes, ignore_index=True)
+
+
+def save_mesh_convergence_N8_representative_periods():
+    """Save the N=8 representative-period mesh-convergence CSV."""
+    ensure_output_dirs()
+    output_path = os.path.join(
+        OUTPUT_DIR, "mesh_convergence_N8_representative_periods.csv"
+    )
+    df = mesh_convergence_representative_periods_dataframe(n=8)
+    expected_rows = len(MESH_CONVERGENCE_REPRESENTATIVE_PERIODS) * len(
+        MESH_LEVEL_RESOLUTIONS
+    )
+    if len(df) != expected_rows:
+        raise ValueError(
+            "Representative-period mesh convergence table has "
+            f"{len(df)} rows; expected {expected_rows}."
+        )
+    if df.isna().any().any():
+        nan_columns = df.columns[df.isna().any()].tolist()
+        raise ValueError(f"NaN values found in columns: {nan_columns}")
+    df.to_csv(output_path, index=False)
+    print(f"Saved N=8 representative-period mesh convergence test: {output_path}")
+    return output_path
 
 
 def save_mesh_convergence_N8_T1p00():
