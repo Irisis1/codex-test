@@ -53,6 +53,12 @@ FORMAL_MESH_RESOLUTION = MESH_LEVEL_RESOLUTIONS[FORMAL_MESH_LEVEL]
 
 MESH_CONVERGENCE_REPRESENTATIVE_PERIODS = (0.98, 1.00, 1.02, 1.36, 1.38, 1.40)
 
+FIELD_PLOT_DEFAULT_ARRAY_SIZE = 4
+FIELD_PLOT_DEFAULT_PERIOD = 1.00
+FIELD_PLOT_DEFAULT_X_LIMITS = (-1.5, 1.5)
+FIELD_PLOT_DEFAULT_Y_LIMITS = (-1.0, 1.0)
+FIELD_PLOT_DEFAULT_GRID_SHAPE = (121, 81)
+
 
 CANDIDATE_LINE_COORDINATES = (
     -0.40,
@@ -877,6 +883,148 @@ def line_probe_dataframe(solver, result, problem):
     return free_surface_elevation_dataframe(samples, solver, result, problem)
 
 
+
+def field_plot_grid(
+    x_limits=FIELD_PLOT_DEFAULT_X_LIMITS,
+    y_limits=FIELD_PLOT_DEFAULT_Y_LIMITS,
+    grid_shape=FIELD_PLOT_DEFAULT_GRID_SHAPE,
+):
+    """Return a moderate 2D grid for selected-period free-surface plots."""
+    nx, ny = grid_shape
+    if nx <= 1 or ny <= 1:
+        raise ValueError("Field-plot grid dimensions must both be greater than 1.")
+    x = np.linspace(x_limits[0], x_limits[1], nx)
+    y = np.linspace(y_limits[0], y_limits[1], ny)
+    grid_x, grid_y = np.meshgrid(x, y)
+    points = np.column_stack((grid_x.ravel(), grid_y.ravel()))
+    return x, y, grid_x, grid_y, points
+
+
+def free_surface_field_dataframe(solver, result, problem, points):
+    """Compute selected-period incident, diffracted, and total elevations on a grid.
+
+    This helper is intentionally separate from the scan workflows so dense 2D
+    fields are only evaluated when ``--mode field-plot`` is explicitly selected.
+    The normalization remains Capytaine's unit incident-wave amplitude.
+    """
+    eta_diffracted = np.asarray(
+        compute_diffracted_elevation(points, solver, result), dtype=complex
+    )
+    eta_incident = np.asarray(
+        airy_waves_free_surface_elevation(points, problem), dtype=complex
+    )
+    eta_total = eta_incident + eta_diffracted
+
+    return pd.DataFrame(
+        {
+            "x": points[:, 0],
+            "y": points[:, 1],
+            "incident_real": eta_incident.real,
+            "incident_imag": eta_incident.imag,
+            "incident_abs": np.abs(eta_incident),
+            "diffracted_real": eta_diffracted.real,
+            "diffracted_imag": eta_diffracted.imag,
+            "diffracted_abs": np.abs(eta_diffracted),
+            "total_real": eta_total.real,
+            "total_imag": eta_total.imag,
+            "total_abs": np.abs(eta_total),
+        }
+    )
+
+
+def plot_total_elevation_field(field_df, grid_x, grid_y, n, period, output_path):
+    """Save a signed real-part total free-surface contour plot."""
+    import matplotlib.pyplot as plt
+
+    eta = field_df["total_real"].to_numpy().reshape(grid_x.shape)
+    finite_eta = eta[np.isfinite(eta)]
+    if finite_eta.size == 0:
+        raise ValueError("No finite total_real values are available for field plotting.")
+
+    color_limit = float(np.nanmax(np.abs(finite_eta)))
+    if color_limit == 0.0:
+        color_limit = 1.0
+
+    fig, ax = plt.subplots(figsize=(7.0, 4.8), constrained_layout=True)
+    contour_levels = np.linspace(-color_limit, color_limit, 41)
+    contour = ax.contourf(
+        grid_x,
+        grid_y,
+        eta,
+        levels=contour_levels,
+        cmap="RdBu_r",
+    )
+    centers = np.asarray(cylinder_centers(n), dtype=float)
+    ax.scatter(
+        centers[:, 0],
+        centers[:, 1],
+        s=30,
+        c="black",
+        marker="o",
+        label="Cylinder centres",
+    )
+    ax.set_aspect("equal", adjustable="box")
+    ax.set_xlabel("x coordinate (m)")
+    ax.set_ylabel("y coordinate (m)")
+    ax.set_title(f"Signed total free-surface elevation, N={n}, T={period:.2f} s")
+    cbar = fig.colorbar(contour, ax=ax)
+    cbar.set_label("Re(total eta), unit incident-wave amplitude")
+    ax.legend(loc="upper right")
+    fig.savefig(output_path, dpi=200)
+    plt.close(fig)
+
+
+def run_field_plot_workflow(
+    n=FIELD_PLOT_DEFAULT_ARRAY_SIZE,
+    period=FIELD_PLOT_DEFAULT_PERIOD,
+    grid_shape=FIELD_PLOT_DEFAULT_GRID_SHAPE,
+):
+    """Run a selected-period 2D free-surface field-plot workflow.
+
+    This workflow is independent from diagnostics, scan-segment, and
+    merge-segments. It performs one fixed-body diffraction solve for the chosen
+    array size and period, writes the selected-period field grid to ``outputs/``,
+    and saves a signed real-part contour plot to ``figures/``.
+    """
+    ensure_output_dirs()
+    x, y, grid_x, grid_y, points = field_plot_grid(grid_shape=grid_shape)
+
+    body = make_ring_array(n, resolution=FORMAL_MESH_RESOLUTION)
+    solver = cpt.BEMSolver()
+    omega = 2.0 * np.pi / period
+    problem = cpt.DiffractionProblem(
+        body=body,
+        omega=omega,
+        water_depth=WATER_DEPTH,
+        wave_direction=0.0,
+        rho=RHO,
+        g=G,
+    )
+
+    result = solver.solve(problem)
+    field_df = free_surface_field_dataframe(solver, result, problem, points)
+    field_df = field_df.assign(
+        array_size=n,
+        period=period,
+        mesh_level=FORMAL_MESH_LEVEL,
+        grid_nx=len(x),
+        grid_ny=len(y),
+    )
+
+    output_stem = f"field_N{n}_T{period:.2f}".replace(".", "p")
+    csv_path = os.path.join(OUTPUT_DIR, f"{output_stem}.csv")
+    png_path = os.path.join(FIGURE_DIR, f"{output_stem}.png")
+    field_df.to_csv(csv_path, index=False)
+    plot_total_elevation_field(field_df, grid_x, grid_y, n, period, png_path)
+
+    print(
+        "Finished fixed-body diffraction field plot: "
+        f"N={n}, T={period:.2f} s, grid={len(x)}x{len(y)}"
+    )
+    print(f"Saved field grid: {csv_path}")
+    print(f"Saved field figure: {png_path}")
+    return csv_path, png_path
+
 def run_probe_smoke_test(n=4, period=SMOKE_TEST_PERIOD):
     """Run one fixed-body diffraction case and save free-surface probes."""
     ensure_output_dirs()
@@ -924,11 +1072,11 @@ def run_all_smoke_tests():
 def parse_args():
     """Parse command-line arguments for local scan workflows."""
     parser = argparse.ArgumentParser(
-        description="Run fixed-body diffraction diagnostics and N=8 scan workflows."
+        description="Run fixed-body diffraction diagnostics, N=8 scan, and field-plot workflows."
     )
     parser.add_argument(
         "--mode",
-        choices=("diagnostics", "scan-segment", "merge-segments"),
+        choices=("diagnostics", "scan-segment", "merge-segments", "field-plot"),
         default="diagnostics",
         help="Workflow to run. The default diagnostics mode does not run a period scan.",
     )
@@ -948,6 +1096,30 @@ def parse_args():
         default=N8_SCAN_STEP,
         help="Period step in seconds for --mode scan-segment (default: 0.01).",
     )
+    parser.add_argument(
+        "--field-n",
+        type=int,
+        default=FIELD_PLOT_DEFAULT_ARRAY_SIZE,
+        help="Array size for --mode field-plot (default: 4).",
+    )
+    parser.add_argument(
+        "--field-period",
+        type=float,
+        default=FIELD_PLOT_DEFAULT_PERIOD,
+        help="Selected period in seconds for --mode field-plot (default: 1.00).",
+    )
+    parser.add_argument(
+        "--field-nx",
+        type=int,
+        default=FIELD_PLOT_DEFAULT_GRID_SHAPE[0],
+        help="Number of x samples for --mode field-plot (default: 121).",
+    )
+    parser.add_argument(
+        "--field-ny",
+        type=int,
+        default=FIELD_PLOT_DEFAULT_GRID_SHAPE[1],
+        help="Number of y samples for --mode field-plot (default: 81).",
+    )
     return parser.parse_args()
 
 
@@ -966,6 +1138,14 @@ def main():
 
     if args.mode == "merge-segments":
         merge_n8_period_scan_segments()
+        return
+
+    if args.mode == "field-plot":
+        run_field_plot_workflow(
+            n=args.field_n,
+            period=args.field_period,
+            grid_shape=(args.field_nx, args.field_ny),
+        )
         return
 
     raise ValueError(f"Unsupported mode: {args.mode}")
