@@ -417,6 +417,28 @@ def point_probe_dataframe(solver, result, problem):
     return free_surface_elevation_dataframe(samples, solver, result, problem)
 
 
+def solve_fixed_body_diffraction_case(
+    n,
+    period,
+    resolution=FORMAL_MESH_RESOLUTION,
+    mesh_level=FORMAL_MESH_LEVEL,
+):
+    """Build and solve one fixed-body diffraction case with shared settings."""
+    body = make_ring_array(n, resolution=resolution)
+    solver = cpt.BEMSolver()
+    omega = 2.0 * np.pi / period
+    problem = cpt.DiffractionProblem(
+        body=body,
+        omega=omega,
+        water_depth=WATER_DEPTH,
+        wave_direction=0.0,
+        rho=RHO,
+        g=G,
+    )
+    result = solver.solve(problem)
+    return solver, problem, result, mesh_level
+
+
 def mesh_convergence_dataframe(n=MESH_DIAGNOSTIC_ARRAY_SIZE, period=SMOKE_TEST_PERIOD):
     """Run a single-period N=8 mesh-convergence smoke test.
 
@@ -989,24 +1011,17 @@ def run_field_plot_workflow(
     ensure_output_dirs()
     x, y, grid_x, grid_y, points = field_plot_grid(grid_shape=grid_shape)
 
-    body = make_ring_array(n, resolution=FORMAL_MESH_RESOLUTION)
-    solver = cpt.BEMSolver()
-    omega = 2.0 * np.pi / period
-    problem = cpt.DiffractionProblem(
-        body=body,
-        omega=omega,
-        water_depth=WATER_DEPTH,
-        wave_direction=0.0,
-        rho=RHO,
-        g=G,
+    solver, problem, result, mesh_level = solve_fixed_body_diffraction_case(
+        n=n,
+        period=period,
+        resolution=FORMAL_MESH_RESOLUTION,
+        mesh_level=FORMAL_MESH_LEVEL,
     )
-
-    result = solver.solve(problem)
     field_df = free_surface_field_dataframe(solver, result, problem, points)
     field_df = field_df.assign(
         array_size=n,
         period=period,
-        mesh_level=FORMAL_MESH_LEVEL,
+        mesh_level=mesh_level,
         grid_nx=len(x),
         grid_ny=len(y),
     )
@@ -1029,20 +1044,12 @@ def run_probe_smoke_test(n=4, period=SMOKE_TEST_PERIOD):
     """Run one fixed-body diffraction case and save free-surface probes."""
     ensure_output_dirs()
 
-    body = make_ring_array(n)
-    solver = cpt.BEMSolver()
-
-    omega = 2.0 * np.pi / period
-    problem = cpt.DiffractionProblem(
-        body=body,
-        omega=omega,
-        water_depth=WATER_DEPTH,
-        wave_direction=0.0,
-        rho=RHO,
-        g=G,
+    solver, problem, result, _ = solve_fixed_body_diffraction_case(
+        n=n,
+        period=period,
+        resolution=FORMAL_MESH_RESOLUTION,
+        mesh_level=FORMAL_MESH_LEVEL,
     )
-
-    result = solver.solve(problem)
     point_df = point_probe_dataframe(solver, result, problem)
     line_df = line_probe_dataframe(solver, result, problem)
 
@@ -1057,8 +1064,48 @@ def run_probe_smoke_test(n=4, period=SMOKE_TEST_PERIOD):
     )
     print(f"Saved point probes: {point_csv_path}")
     print(f"Saved line probes: {line_csv_path}")
-
     return point_csv_path, line_csv_path
+
+
+def run_probe_field_consistency_check(n=6, period=1.00, grid_shape=(41, 31)):
+    """Compare P0 values from probe and field-grid workflows for one case."""
+    _, _, _, _, points = field_plot_grid(grid_shape=grid_shape)
+    p0_point = np.array([[0.0, 0.0]], dtype=float)
+    if not np.any(np.all(np.isclose(points, p0_point), axis=1)):
+        raise ValueError("Grid does not include P0=(0, 0); choose odd nx and ny.")
+
+    solver, problem, result, mesh_level = solve_fixed_body_diffraction_case(
+        n=n,
+        period=period,
+        resolution=FORMAL_MESH_RESOLUTION,
+        mesh_level=FORMAL_MESH_LEVEL,
+    )
+    probe_p0 = point_probe_dataframe(solver, result, problem).set_index("probe").loc["P0"]
+    field_p0 = free_surface_field_dataframe(solver, result, problem, p0_point).iloc[0]
+
+    total_abs_probe = float(probe_p0["total_abs"])
+    total_abs_field = float(field_p0["total_abs"])
+    relative_diff = abs(total_abs_probe - total_abs_field) / abs(total_abs_probe)
+
+    consistency_df = pd.DataFrame(
+        [
+            {
+                "array_size": n,
+                "period": period,
+                "mesh_level": mesh_level,
+                "probe_P0_total_abs": total_abs_probe,
+                "field_P0_total_abs": total_abs_field,
+                "probe_P0_diffracted_abs": float(probe_p0["diffracted_abs"]),
+                "field_P0_diffracted_abs": float(field_p0["diffracted_abs"]),
+                "relative_diff_total_abs": relative_diff,
+            }
+        ]
+    )
+    output_stem = f"consistency_probe_field_N{n}_T{period:.2f}".replace(".", "p")
+    output_path = os.path.join(OUTPUT_DIR, f"{output_stem}.csv")
+    consistency_df.to_csv(output_path, index=False)
+    print(f"Saved probe/field consistency check: {output_path}")
+    return output_path
 
 
 def run_all_smoke_tests():
@@ -1119,6 +1166,12 @@ def parse_args():
         type=int,
         default=FIELD_PLOT_DEFAULT_GRID_SHAPE[1],
         help="Number of y samples for --mode field-plot (default: 81).",
+    )
+    parser.add_argument(
+        "--field-quantity",
+        choices=("abs",),
+        default="abs",
+        help="Field quantity placeholder for compatibility (currently only: abs).",
     )
     return parser.parse_args()
 
