@@ -596,15 +596,15 @@ def period_sequence(start_period, end_period, step=N8_SCAN_STEP):
     ]
 
 
-def n8_period_scan_paths(start_period, end_period):
-    """Return the three CSV paths for one N=8 period-scan segment."""
+def period_scan_paths(array_size, start_period, end_period):
+    """Return the three CSV paths for one period-scan segment."""
     start_label = format_period_for_filename(start_period)
     end_label = format_period_for_filename(end_period)
     suffix = f"{start_label}_{end_label}"
     return {
-        "summary": os.path.join(OUTPUT_DIR, f"N8_period_scan_summary_{suffix}.csv"),
-        "point": os.path.join(OUTPUT_DIR, f"N8_period_scan_point_probes_{suffix}.csv"),
-        "line": os.path.join(OUTPUT_DIR, f"N8_period_scan_line_probes_{suffix}.csv"),
+        "summary": os.path.join(OUTPUT_DIR, f"N{array_size}_period_scan_summary_{suffix}.csv"),
+        "point": os.path.join(OUTPUT_DIR, f"N{array_size}_period_scan_point_probes_{suffix}.csv"),
+        "line": os.path.join(OUTPUT_DIR, f"N{array_size}_period_scan_line_probes_{suffix}.csv"),
     }
 
 
@@ -663,8 +663,8 @@ def drop_period_rows(dataframe, period):
     return dataframe.loc[period_values != period].copy()
 
 
-def run_n8_period_case(body, solver, period):
-    """Run one N=8 fixed-body diffraction-only scan period."""
+def run_period_case(array_size, body, solver, period):
+    """Run one fixed-body diffraction-only scan period."""
     omega = 2.0 * np.pi / period
     problem = cpt.DiffractionProblem(
         body=body,
@@ -685,7 +685,7 @@ def run_n8_period_case(body, solver, period):
     rear_abs = float(total_abs_by_probe.loc["rear"])
 
     summary_record = {
-        "array_size": N8_SCAN_ARRAY_SIZE,
+        "array_size": array_size,
         "period": round(period, N8_SCAN_PERIOD_DECIMALS),
         "mesh_level": FORMAL_MESH_LEVEL,
         "cylinder_resolution": "x".join(
@@ -716,7 +716,7 @@ def run_n8_period_case(body, solver, period):
             summary_record[f"{probe}_{quantity}"] = probe_record[quantity]
 
     metadata = {
-        "array_size": N8_SCAN_ARRAY_SIZE,
+        "array_size": array_size,
         "period": round(period, N8_SCAN_PERIOD_DECIMALS),
         "mesh_level": FORMAL_MESH_LEVEL,
     }
@@ -726,8 +726,8 @@ def run_n8_period_case(body, solver, period):
     return pd.DataFrame([summary_record]), point_df, line_df
 
 
-def run_n8_period_scan_segment(start_period, end_period, step=N8_SCAN_STEP):
-    """Run a resumable N=8 period-scan segment and write segment CSV files.
+def run_period_scan_segment(array_size, start_period, end_period, step=N8_SCAN_STEP):
+    """Run a resumable period-scan segment and write segment CSV files.
 
     Existing segment CSVs are read before the run. Periods that already have one
     summary row, all fixed point probes, and all fixed line probes are skipped so
@@ -735,7 +735,7 @@ def run_n8_period_scan_segment(start_period, end_period, step=N8_SCAN_STEP):
     """
     ensure_output_dirs()
     periods = period_sequence(start_period, end_period, step=step)
-    paths = n8_period_scan_paths(periods[0], periods[-1])
+    paths = period_scan_paths(array_size, periods[0], periods[-1])
 
     summary_df = read_existing_scan_csv(paths["summary"])
     point_df = read_existing_scan_csv(paths["point"])
@@ -744,18 +744,18 @@ def run_n8_period_scan_segment(start_period, end_period, step=N8_SCAN_STEP):
     pending_periods = [period for period in periods if period not in completed_periods]
 
     print(
-        "N=8 period scan segment "
+        f"N={array_size} period scan segment "
         f"{periods[0]:.2f}-{periods[-1]:.2f} s: "
         f"{len(completed_periods)} completed, {len(pending_periods)} pending."
     )
 
     if pending_periods:
-        body = make_ring_array(N8_SCAN_ARRAY_SIZE, resolution=FORMAL_MESH_RESOLUTION)
+        body = make_ring_array(array_size, resolution=FORMAL_MESH_RESOLUTION)
         solver = cpt.BEMSolver()
 
         for period in pending_periods:
-            print(f"Running N=8 fixed-body diffraction scan at T={period:.2f} s")
-            new_summary_df, new_point_df, new_line_df = run_n8_period_case(
+            print(f"Running N={array_size} fixed-body diffraction scan at T={period:.2f} s")
+            new_summary_df, new_point_df, new_line_df = run_period_case(array_size,
                 body, solver, period
             )
             summary_df = drop_period_rows(summary_df, period)
@@ -769,45 +769,45 @@ def run_n8_period_scan_segment(start_period, end_period, step=N8_SCAN_STEP):
     else:
         save_scan_tables(paths, summary_df, point_df, line_df)
 
-    print(f"Saved N=8 scan segment summary: {paths['summary']}")
-    print(f"Saved N=8 scan segment point probes: {paths['point']}")
-    print(f"Saved N=8 scan segment line probes: {paths['line']}")
+    print(f"Saved N={array_size} scan segment summary: {paths['summary']}")
+    print(f"Saved N={array_size} scan segment point probes: {paths['point']}")
+    print(f"Saved N={array_size} scan segment line probes: {paths['line']}")
     return paths
 
 
-def scan_segment_glob(kind):
+def scan_segment_glob(array_size, kind):
     """Return sorted segment CSV paths for a scan table kind, excluding merged outputs."""
     merged_path = os.path.join(
         OUTPUT_DIR,
-        f"N8_period_scan_{kind}_{format_period_for_filename(N8_SCAN_START_PERIOD)}_"
+        f"N{array_size}_period_scan_{kind}_{format_period_for_filename(N8_SCAN_START_PERIOD)}_"
         f"{format_period_for_filename(N8_SCAN_END_PERIOD)}.csv",
     )
-    pattern = os.path.join(OUTPUT_DIR, f"N8_period_scan_{kind}_*.csv")
+    pattern = os.path.join(OUTPUT_DIR, f"N{array_size}_period_scan_{kind}_*.csv")
     return sorted(path for path in glob.glob(pattern) if path != merged_path)
 
 
-def merged_n8_period_scan_paths():
-    """Return the final merged N=8 period-scan CSV paths."""
+def merged_period_scan_paths(array_size):
+    """Return the final merged period-scan CSV paths."""
     start_label = format_period_for_filename(N8_SCAN_START_PERIOD)
     end_label = format_period_for_filename(N8_SCAN_END_PERIOD)
     suffix = f"{start_label}_{end_label}"
     return {
-        "summary": os.path.join(OUTPUT_DIR, f"N8_period_scan_summary_{suffix}.csv"),
-        "point": os.path.join(OUTPUT_DIR, f"N8_period_scan_point_probes_{suffix}.csv"),
-        "line": os.path.join(OUTPUT_DIR, f"N8_period_scan_line_probes_{suffix}.csv"),
+        "summary": os.path.join(OUTPUT_DIR, f"N{array_size}_period_scan_summary_{suffix}.csv"),
+        "point": os.path.join(OUTPUT_DIR, f"N{array_size}_period_scan_point_probes_{suffix}.csv"),
+        "line": os.path.join(OUTPUT_DIR, f"N{array_size}_period_scan_line_probes_{suffix}.csv"),
     }
 
 
-def read_segment_tables(kind):
+def read_segment_tables(array_size, kind):
     """Read and concatenate all segment CSVs for one scan table kind."""
-    paths = scan_segment_glob(kind)
+    paths = scan_segment_glob(array_size, kind)
     if not paths:
         raise FileNotFoundError(f"No segment CSV files found for {kind}.")
     return pd.concat((pd.read_csv(path) for path in paths), ignore_index=True), paths
 
 
-def validate_merged_scan_tables(summary_df, point_df, line_df):
-    """Validate the merged full 0.90-2.00 s N=8 scan tables."""
+def validate_merged_scan_tables(array_size, summary_df, point_df, line_df):
+    """Validate the merged full 0.90-2.00 s scan tables."""
     expected_periods = period_sequence(
         N8_SCAN_START_PERIOD, N8_SCAN_END_PERIOD, step=N8_SCAN_STEP
     )
@@ -838,6 +838,15 @@ def validate_merged_scan_tables(summary_df, point_df, line_df):
     ):
         raise ValueError("NaN values found in merged scan tables.")
 
+    for label, dataframe in (("summary", summary_df), ("point", point_df), ("line", line_df)):
+        if "array_size" not in dataframe.columns:
+            raise ValueError(f"Merged {label} table is missing array_size column.")
+        rounded_sizes = set(dataframe["array_size"].astype(int))
+        if rounded_sizes != {array_size}:
+            raise ValueError(
+                f"Merged {label} table has array_size values {sorted(rounded_sizes)}; expected {[array_size]}."
+            )
+
     expected_point_rows = len(expected_periods) * len(POINT_PROBES)
     expected_line_rows = len(expected_periods) * len(sampling_lines())
     if len(point_df) != expected_point_rows:
@@ -866,12 +875,12 @@ def validate_merged_scan_tables(summary_df, point_df, line_df):
             )
 
 
-def merge_n8_period_scan_segments():
-    """Merge validated N=8 period-scan segment CSVs into full-scan CSVs."""
+def merge_period_scan_segments(array_size):
+    """Merge validated period-scan segment CSVs into full-scan CSVs."""
     ensure_output_dirs()
-    summary_df, summary_paths = read_segment_tables("summary")
-    point_df, point_paths = read_segment_tables("point_probes")
-    line_df, line_paths = read_segment_tables("line_probes")
+    summary_df, summary_paths = read_segment_tables(array_size, "summary")
+    point_df, point_paths = read_segment_tables(array_size, "point_probes")
+    line_df, line_paths = read_segment_tables(array_size, "line_probes")
 
     summary_df["period"] = summary_df["period"].round(N8_SCAN_PERIOD_DECIMALS)
     point_df["period"] = point_df["period"].round(N8_SCAN_PERIOD_DECIMALS)
@@ -883,9 +892,9 @@ def merge_n8_period_scan_segments():
         ["period", "line", "sample_index"], inplace=True, ignore_index=True
     )
 
-    validate_merged_scan_tables(summary_df, point_df, line_df)
+    validate_merged_scan_tables(array_size, summary_df, point_df, line_df)
 
-    paths = merged_n8_period_scan_paths()
+    paths = merged_period_scan_paths(array_size)
     summary_df.to_csv(paths["summary"], index=False)
     point_df.to_csv(paths["point"], index=False)
     line_df.to_csv(paths["line"], index=False)
@@ -1119,7 +1128,7 @@ def run_all_smoke_tests():
 def parse_args():
     """Parse command-line arguments for local scan workflows."""
     parser = argparse.ArgumentParser(
-        description="Run fixed-body diffraction diagnostics, N=8 scan, and field-plot workflows."
+        description="Run fixed-body diffraction diagnostics, scan, and field-plot workflows."
     )
     parser.add_argument(
         "--mode",
@@ -1142,6 +1151,13 @@ def parse_args():
         type=float,
         default=N8_SCAN_STEP,
         help="Period step in seconds for --mode scan-segment (default: 0.01).",
+    )
+    parser.add_argument(
+        "--scan-n",
+        type=int,
+        choices=(4, 6, 8),
+        default=N8_SCAN_ARRAY_SIZE,
+        help="Array size for --mode scan-segment and --mode merge-segments (default: 8).",
     )
     parser.add_argument(
         "--field-n",
@@ -1186,11 +1202,11 @@ def main():
     if args.mode == "scan-segment":
         if args.start is None or args.end is None:
             raise ValueError("--mode scan-segment requires both --start and --end.")
-        run_n8_period_scan_segment(args.start, args.end, step=args.step)
+        run_period_scan_segment(args.scan_n, args.start, args.end, step=args.step)
         return
 
     if args.mode == "merge-segments":
-        merge_n8_period_scan_segments()
+        merge_period_scan_segments(args.scan_n)
         return
 
     if args.mode == "field-plot":
