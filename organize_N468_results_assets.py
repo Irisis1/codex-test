@@ -129,11 +129,116 @@ def build_data_source_map_rows() -> list[dict[str, str]]:
 
 
 def write_markdowns() -> None:
-    notes = """# N=4/N=6/N=8 结果解读说明\n\n## 1. 项目当前状态\n当前 N=4、N=6、N=8 的 full scan、单模型诊断、横向对比及 PPT 总对比页产物均已纳入本次资产盘点范围。\n\n## 2. 数据来源链条\n1) `run_ring_array.py` 生成 full scan CSV（summary/point/line）。\n2) `analyze_scan_results.py` 与 `plot_scan_diagnostics.py` 生成单模型诊断报告与图。\n3) `compare_N4_N6_N8.py` 生成 N468 横向对比图表与汇总表。\n4) `make_N468_summary_ppt.py` 生成总对比 PPT 页面。\n\n## 3. 单模型诊断文件说明\n对 N4/N6/N8 的 `center_summary`、`center_five_points`、`front_rear_S` 三图统一说明：\n- 图展示什么：中心均值/峰值与局部化、P0-P4 细节、front/rear 与 S_rear_front。\n- 数据来自哪里：对应 `period_scan_summary` 与 `period_scan_point_probes` CSV。\n- 能支持什么结论：可比较中心响应水平、空间非均匀性、前后场相对变化。\n- 不能支持什么结论：不能把 0.90 s 边界峰写成已确认 resonance；不能将 S_rear_front 写成 Kt 或 strict transmission coefficient；不能据此得出“中心区域均匀增强”。\n\n## 4. 横向对比文件说明\n- `N468_center_mean_comparison.png`：目的=比较中心平均响应；指标=`center_mean_abs`；来源=`N468_key_metrics_comparison.csv`；观察=当前为 N=8 > N=6 > N=4；边界=短周期端解释保守。\n- `N468_center_max_comparison.png`：目的=比较中心局部最大响应；指标=`center_max_abs`；来源同上；观察=当前为 N=8 > N=6 > N=4；边界=N=4/N=6 峰值位于 0.90 s boundary peak。\n- `N468_center_max_to_mean_ratio_comparison.png`：目的=比较局部化程度；指标=`center_max_to_mean_ratio`；观察=N=8 短周期端局部热点更突出；边界=峰位边界敏感。\n- `N468_center_probe_peak_comparison.png`：目的=比较 P0-P4 峰值大小；指标=P0-P4 peak value；观察=P1 常最强。\n- `N468_center_probe_peak_period_comparison.png`：目的=比较 P0-P4 峰值周期；指标=P0-P4 peak period；观察=P1 峰值更早、P2 更晚、P3/P4 基本对称。\n- `N468_front_rear_S_comparison.png`：目的=比较前后场与相对指标；指标=front_abs/rear_abs/S_rear_front；边界=S_rear_front 仅为 transmission-like indicator。\n- `N468_summary_table_for_paper.csv`：目的=论文结果汇总表基础素材；边界=需保留 boundary peak 标注。\n\n## 5. 当前可以支持的结果判断\n- `center_mean_abs` 当前表现为 **N=8 > N=6 > N=4**。\n- `center_max_abs` 当前表现为 **N=8 > N=6 > N=4**，但 N=4/N=6 峰值位于 **0.90 s boundary peak**。\n- `center_max_to_mean_ratio` 显示 N=8 短周期端局部热点更突出，但峰值位于边界。\n- P1 峰值最早且通常最强，P2 峰值周期最晚，P3/P4 基本对称。\n- `S_rear_front` 只作为 **transmission-like indicator**。\n\n## 6. 当前不能支持的结果判断\n- 不能写“柱数越少响应越强”。\n- 不能写“0.90 s 是已确认共振峰”。\n- 不能写“S_rear_front 是 Kt”。\n- 不能写“中心区域均匀增强”。\n- 不能只用 `center_max_abs` 判断柱数效应。\n\n## 7. 后续建议\n- 当前结果可直接用于组会 PPT 总对比页。\n- 当前结果可进入论文 Results 草稿。\n- 若面向投稿，建议补做 **0.85–1.05 s、步长 0.005 s** 的短周期加密扫描，以确认 0.90 s boundary peak。\n"""
+    notes = """# N=4/N=6/N=8 结果解读说明
 
-    ppt_plan = """# N468 PPT 组织建议（按页）\n\n## Page 1：模型与测点布置\n- 放置 N=4/N=6/N=8 几何图、P0-P4、front/rear、入射波方向。\n\n## Page 2：N=4 单模型诊断\n- `N4_center_summary_0p90_2p00.png`\n- `N4_center_five_points_0p90_2p00.png`\n- `N4_front_rear_S_0p90_2p00.png`\n- 强调 N=4 边界峰风险与中心空间非均匀性。\n\n## Page 3：N=6 单模型诊断\n- `N6_center_summary_0p90_2p00.png`\n- `N6_center_five_points_0p90_2p00.png`\n- `N6_front_rear_S_0p90_2p00.png`\n- 强调 N=6 中心响应特征与边界峰风险。\n\n## Page 4：N=8 单模型诊断\n- `N8_center_summary_0p90_2p00.png`\n- `N8_center_five_points_0p90_2p00.png`\n- `N8_front_rear_S_0p90_2p00.png`\n- 强调 N=8 中心增强与峰值位置。\n\n## Page 5：N=4/6/8 总对比页\n- `N468_center_mean_comparison.png`\n- `N468_center_max_comparison.png`\n- `N468_center_max_to_mean_ratio_comparison.png`\n- `N468_center_probe_peak_period_comparison.png`\n- 底部总结：统一后处理口径下，N=8 表现出更强中心响应与局部化特征；多个短周期峰值位于 0.90 s boundary peak，物理解释需保守。\n\n## Page 6：前后场与 transmission-like indicator\n- `N468_front_rear_S_comparison.png`\n- 明确 `S_rear_front` 仅为 transmission-like indicator，不是 Kt。\n\n## Page 7：总结与下一步\n- 已完成 N=4/N=6/N=8 统一横向对比。\n- 当前结果支持 N=8 中心响应与局部化更强。\n- 短周期端存在 boundary peak 不确定性。\n- 后续建议短周期加密扫描。\n"""
+## 1. 项目当前状态
+当前 N=4、N=6、N=8 的 full scan、单模型诊断、横向对比及 PPT 总对比页产物均已纳入本次资产盘点范围。
 
-    paper_plan = """# 论文 Results 图表组织方案（N468）\n\n## 3.1 Numerical setup and probe definition\n- 放模型与测点图（N=4/N=6/N=8，P0-P4，front/rear，入射方向）。\n\n## 3.2 Single-array diagnostic results\n- 正文简要展示 N4/N6/N8 诊断结论，完整诊断图可置于 Appendix。\n\n## 3.3 Effect of array size on central response\n- Fig. X(a): center_mean_abs comparison (`N468_center_mean_comparison.png`)\n- Fig. X(b): center_max_abs comparison (`N468_center_max_comparison.png`)\n- 需注明 N=4/N=6 在 0.90 s 的 boundary peak 风险。\n\n## 3.4 Spatial localization and non-uniformity of the central response\n- Fig. X: center_max_to_mean_ratio comparison (`N468_center_max_to_mean_ratio_comparison.png`)\n- Fig. X: P0-P4 peak value & peak period comparison (`N468_center_probe_peak_comparison.png`, `N468_center_probe_peak_period_comparison.png`)\n\n## 3.5 Front/rear response and transmission-like indicator\n- Fig. X: front_abs, rear_abs, S_rear_front comparison (`N468_front_rear_S_comparison.png`)\n- 明确 `S_rear_front` 仅为 transmission-like indicator。\n\n## Table X\n- 采用 `N468_summary_table_for_paper.csv` 的简化版（保留关键指标、峰值周期、boundary peak 标注）。\n"""
+## 2. 数据来源链条
+1) `run_ring_array.py` 生成 full scan CSV（summary/point/line）。
+2) `analyze_scan_results.py` 与 `plot_scan_diagnostics.py` 生成单模型诊断报告与图。
+3) `compare_N4_N6_N8.py` 生成 N468 横向对比图表与汇总表。
+4) `make_N468_summary_ppt.py` 生成总对比 PPT 页面。
+
+## 3. 单模型诊断文件说明
+对 N4/N6/N8 的 `center_summary`、`center_five_points`、`front_rear_S` 三图统一说明：
+- 图展示什么：中心均值/峰值与局部化、P0-P4 细节、front/rear 与 S_rear_front。
+- 数据来自哪里：对应 `period_scan_summary` 与 `period_scan_point_probes` CSV。
+- 能支持什么结论：可比较中心响应水平、空间非均匀性、前后场相对变化。
+- 不能支持什么结论：不能把 0.90 s 边界峰写成已确认 resonance；不能将 S_rear_front 写成 Kt 或 strict transmission coefficient；不能据此得出“中心区域均匀增强”。
+
+## 4. 横向对比文件说明
+- `N468_center_mean_comparison.png`：目的=比较中心平均响应；指标=`center_mean_abs`；来源=`N468_key_metrics_comparison.csv`；观察=当前为 N=8 > N=6 > N=4（在当前 0.90–2.00 s 扫频范围与统一后处理口径下）；边界=短周期端解释保守。
+- `N468_center_max_comparison.png`：目的=比较中心局部最大响应；指标=`center_max_abs`；来源同上；观察=当前为 N=8 > N=6 > N=4（在当前 0.90–2.00 s 扫频范围与统一后处理口径下）；边界=N=4/N=6 峰值位于 0.90 s boundary peak。
+- `N468_center_max_to_mean_ratio_comparison.png`：目的=比较局部化程度；指标=`center_max_to_mean_ratio`；解释=N=8 在短周期端具有更高的局部热点指标；但 N=4/N=6/N=8 的该指标峰值均位于 0.90 s 边界，因此只能作为边界峰值现象处理。
+- `N468_center_probe_peak_comparison.png`：目的=比较 P0-P4 峰值大小；指标=P0-P4 peak value；观察=P1 常最强。
+- `N468_center_probe_peak_period_comparison.png`：目的=比较 P0-P4 峰值周期；指标=P0-P4 peak period；观察=P1 峰值更早、P2 更晚、P3/P4 基本对称。
+- `N468_front_rear_S_comparison.png`：目的=比较前后场与相对指标；指标=front_abs/rear_abs/S_rear_front；边界=S_rear_front 仅为 transmission-like indicator。
+- `N468_summary_table_for_paper.csv`：目的=论文结果汇总表基础素材；边界=需保留 boundary peak 标注。
+
+## 5. 当前可以支持的结果判断
+- `center_mean_abs` 当前表现为 **N=8 > N=6 > N=4**（在当前 0.90–2.00 s 扫频范围与统一后处理口径下）。
+- `center_max_abs` 当前表现为 **N=8 > N=6 > N=4**（在当前 0.90–2.00 s 扫频范围与统一后处理口径下），但 N=4/N=6 峰值位于 **0.90 s boundary peak**。
+- `center_max_to_mean_ratio`：N=8 在短周期端具有更高的局部热点指标；但 N=4/N=6/N=8 的该指标峰值均位于 0.90 s 边界，因此只能作为边界峰值现象处理。
+- P1 峰值最早且通常最强，P2 峰值周期最晚，P3/P4 基本对称。
+- `S_rear_front` 只作为 **transmission-like indicator**。
+
+## 6. 当前不能支持的结果判断
+- 不能写“柱数越少响应越强”。
+- 不能写“0.90 s 是已确认共振峰”。
+- 不能写“S_rear_front 是 Kt”。
+- 不能写“中心区域均匀增强”。
+- 不能只用 `center_max_abs` 判断柱数效应。
+
+## 7. 后续建议（分三类）
+- 组会：可直接使用当前 N468 横向对比结果。
+- 论文初稿：可写 Results 草稿，但短周期边界峰值需保留限制表述。
+- 投稿前：建议补 **0.85–1.05 s、ΔT=0.005 s** 的短周期加密扫描。
+"""
+
+    ppt_plan = """# N468 PPT 组织建议（推荐 5 页组会版）
+
+## Page 1：研究对象与测点定义
+- 放置 N=4/N=6/N=8 几何图、P0-P4、front/rear、入射波方向。
+
+## Page 2：数据流程与指标定义
+- 数据链条：`run_ring_array.py` → `analyze_scan_results.py` / `plot_scan_diagnostics.py` → `compare_N4_N6_N8.py`。
+- 指标定义：`center_mean_abs`、`center_max_abs`、`center_max_to_mean_ratio`、`front_abs`、`rear_abs`、`S_rear_front`。
+- 强调 `S_rear_front` 仅作 transmission-like indicator。
+
+## Page 3：N=4/6/8 中心响应总对比
+- `N468_center_mean_comparison.png`
+- `N468_center_max_comparison.png`
+- 结论建议写法：在当前 0.90–2.00 s 扫频范围与统一后处理口径下，中心响应对比表现为 N=8 > N=6 > N=4。
+
+## Page 4：中心局部化与 P0–P4 空间分化
+- `N468_center_max_to_mean_ratio_comparison.png`
+- `N468_center_probe_peak_comparison.png`
+- `N468_center_probe_peak_period_comparison.png`
+- 说明短周期边界峰值的限制表述。
+
+## Page 5：前后场指标、边界峰风险与下一步
+- `N468_front_rear_S_comparison.png`
+- 汇总 boundary peak 风险（重点是 0.90 s）。
+- 下一步建议：0.85–1.05 s、ΔT=0.005 s 加密扫描。
+
+完整 N=4/N=6/N=8 单模型诊断图建议放入 Appendix 或备查页。
+"""
+
+    paper_plan = """# 论文 Results 图表组织方案（N468）
+
+## Method / Numerical model（不放在 Results）
+- Numerical setup and probe definition（N=4/N=6/N=8，P0-P4，front/rear，入射方向）应放在 Method/Numerical model 部分。
+
+## Results 主线
+### 3.1 Effect of array size on central response
+- Fig. X(a): `N468_center_mean_comparison.png`
+- Fig. X(b): `N468_center_max_comparison.png`
+- 文中需明确：在当前 0.90–2.00 s 扫频范围与统一后处理口径下，中心响应比较呈现 N=8 > N=6 > N=4。
+
+### 3.2 Spatial localization and non-uniformity of the central response
+- Fig. X: `N468_center_max_to_mean_ratio_comparison.png`
+- Fig. X(a): `N468_center_probe_peak_comparison.png`
+- Fig. X(b): `N468_center_probe_peak_period_comparison.png`
+- 对 `center_max_to_mean_ratio` 的限制写法：N=8 在短周期端具有更高的局部热点指标；但 N=4/N=6/N=8 的该指标峰值均位于 0.90 s 边界，因此只能作为边界峰值现象处理。
+
+### 3.3 Front/rear response and transmission-like indicator
+- Fig. X: `N468_front_rear_S_comparison.png`
+- 明确 `S_rear_front` 仅作 transmission-like indicator。
+
+### 3.4 Summary table and boundary-peak limitations
+- Table X 只保留以下字段：
+  - `array_size`
+  - `center_mean_abs peak`
+  - `center_max_abs peak`
+  - `center_max_to_mean_ratio peak`
+  - `rear_abs peak`
+  - `S_rear_front peak`
+  - `boundary_peak_flag_count`
+- 表注：
+  - `* indicates a boundary peak at T=0.90 s.`
+  - `S_rear_front is used only as a transmission-like indicator.`
+"""
 
     for p, txt in [
         (NOTES_PATH, notes),
