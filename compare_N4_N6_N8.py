@@ -38,6 +38,8 @@ KEY_METRICS = [
     "rear_abs",
     "S_rear_front",
 ]
+ANOMALY_LOW = 0.90
+ANOMALY_HIGH = 0.93
 
 
 def input_paths(array_size: int) -> tuple[Path, Path]:
@@ -63,12 +65,12 @@ def period_sequence_ok(periods: pd.Series) -> bool:
 
 def check_peak_flags(period: float) -> tuple[bool, bool]:
     peak_at_boundary = bool(np.isclose(period, 0.90) or np.isclose(period, 2.00))
-    near_anomaly_interval = bool(0.90 <= period <= 0.93)
+    near_anomaly_interval = bool(ANOMALY_LOW <= period <= ANOMALY_HIGH)
     return peak_at_boundary, near_anomaly_interval
 
 
 def annotate_anomaly_interval(ax: plt.Axes) -> None:
-    ax.axvspan(0.90, 0.93, color="gray", alpha=0.15, label="anomaly-check interval")
+    ax.axvspan(ANOMALY_LOW, ANOMALY_HIGH, color="gray", alpha=0.15, label="anomaly-check interval")
 
 
 def load_and_validate() -> tuple[dict[int, pd.DataFrame], dict[int, pd.DataFrame]]:
@@ -183,6 +185,35 @@ def build_outputs(summary_data: dict[int, pd.DataFrame], point_data: dict[int, p
     return key_metrics, peak_metrics, center_probe_peaks
 
 
+
+
+def build_summary_table_for_paper(peak_metrics: pd.DataFrame, center_probe_peaks: pd.DataFrame) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    for n in ARRAY_SIZES:
+        row: dict[str, object] = {"array_size": n}
+        boundary_count = 0
+
+        for metric in KEY_METRICS:
+            rec = peak_metrics[(peak_metrics["array_size"] == n) & (peak_metrics["metric"] == metric)].iloc[0]
+            row[f"{metric}_peak_period"] = float(rec["peak_period"])
+            row[f"{metric}_peak_value"] = float(rec["peak_value"])
+            row[f"{metric}_peak_at_boundary"] = bool(rec["peak_at_boundary"])
+            row[f"{metric}_near_anomaly_interval"] = bool(rec["near_anomaly_interval"])
+            boundary_count += int(bool(rec["peak_at_boundary"]))
+
+        for probe in CENTER_PROBES:
+            rec = center_probe_peaks[(center_probe_peaks["array_size"] == n) & (center_probe_peaks["probe"] == probe)].iloc[0]
+            row[f"{probe}_peak_period"] = float(rec["peak_period"])
+            row[f"{probe}_peak_value"] = float(rec["peak_value"])
+            row[f"{probe}_peak_at_boundary"] = bool(rec["peak_at_boundary"])
+            row[f"{probe}_near_anomaly_interval"] = bool(rec["near_anomaly_interval"])
+            boundary_count += int(bool(rec["peak_at_boundary"]))
+
+        row["boundary_peak_flag_count"] = boundary_count
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
 def create_plots(key_metrics: pd.DataFrame, center_probe_peaks: pd.DataFrame) -> None:
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -244,6 +275,40 @@ def create_plots(key_metrics: pd.DataFrame, center_probe_peaks: pd.DataFrame) ->
     fig.savefig(FIGURE_DIR / "N468_center_probe_peak_comparison.png", dpi=300)
     plt.close(fig)
 
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for n in ARRAY_SIZES:
+        d = key_metrics[key_metrics["array_size"] == n]
+        ax.plot(d["period"], d["center_max_to_mean_ratio"], label=f"N={n}")
+    annotate_anomaly_interval(ax)
+    ax.set_title("center_max_to_mean_ratio comparison")
+    ax.set_xlabel("Period (s)")
+    ax.set_ylabel("center_max_to_mean_ratio")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(FIGURE_DIR / "N468_center_max_to_mean_ratio_comparison.png", dpi=300)
+    plt.close(fig)
+
+    pp = center_probe_peaks.pivot(index="probe", columns="array_size", values="peak_period").reindex(CENTER_PROBES)
+    boundary = center_probe_peaks.pivot(index="probe", columns="array_size", values="peak_at_boundary").reindex(CENTER_PROBES)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for i, n in enumerate(ARRAY_SIZES):
+        vals = pp[n].to_numpy()
+        xloc = x + (i - 1) * width
+        bars = ax.bar(xloc, vals, width=width, label=f"N={n}")
+        for j, b in enumerate(bars):
+            if bool(boundary.iloc[j][n]):
+                ax.text(b.get_x() + b.get_width() / 2, b.get_height() + 0.01, "*", ha="center", va="bottom", fontsize=12)
+    ax.set_xticks(x)
+    ax.set_xticklabels(CENTER_PROBES)
+    ax.set_xlabel("probe")
+    ax.set_ylabel("peak_period")
+    ax.set_title("P0-P4 peak period comparison across N=4/6/8")
+    ax.legend(title="array_size")
+    ax.text(0.01, 0.98, "* = boundary peak", transform=ax.transAxes, va="top", ha="left")
+    fig.tight_layout()
+    fig.savefig(FIGURE_DIR / "N468_center_probe_peak_period_comparison.png", dpi=300)
+    plt.close(fig)
+
 
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -251,14 +316,17 @@ def main() -> None:
 
     summary_data, point_data = load_and_validate()
     key_metrics, peak_metrics, center_probe = build_outputs(summary_data, point_data)
+    summary_table = build_summary_table_for_paper(peak_metrics, center_probe)
 
     key_path = OUTPUT_DIR / "N468_key_metrics_comparison.csv"
     peak_path = OUTPUT_DIR / "N468_peak_periods_comparison.csv"
     center_path = OUTPUT_DIR / "N468_center_probe_comparison.csv"
+    summary_table_path = OUTPUT_DIR / "N468_summary_table_for_paper.csv"
 
     key_metrics.to_csv(key_path, index=False)
     peak_metrics.to_csv(peak_path, index=False)
     center_probe.to_csv(center_path, index=False)
+    summary_table.to_csv(summary_table_path, index=False)
 
     create_plots(key_metrics, center_probe)
 
@@ -272,6 +340,9 @@ def main() -> None:
         FIGURE_DIR / "N468_center_max_comparison.png",
         FIGURE_DIR / "N468_front_rear_S_comparison.png",
         FIGURE_DIR / "N468_center_probe_peak_comparison.png",
+        FIGURE_DIR / "N468_center_max_to_mean_ratio_comparison.png",
+        FIGURE_DIR / "N468_center_probe_peak_period_comparison.png",
+        summary_table_path,
     ]
     for out in outputs:
         print(f"- {out}")
@@ -281,6 +352,9 @@ def main() -> None:
 
     print("\nN468_center_probe_comparison.csv 内容:")
     print(center_probe.to_string(index=False))
+
+    print("\nN468_summary_table_for_paper.csv 内容:")
+    print(summary_table.to_string(index=False))
 
 
 if __name__ == "__main__":
