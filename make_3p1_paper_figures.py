@@ -25,6 +25,8 @@ REFINED_PERIOD_MIN = 0.85
 REFINED_PERIOD_MAX = 1.05
 NEAR_BOUNDARY_MIN = 0.90
 NEAR_BOUNDARY_MAX = 0.93
+LOWER_BOUNDARY_MIN = 0.85
+LOWER_BOUNDARY_MAX = 0.87
 
 MAIN_COMBINED_CSV = OUTPUT_DIR / "N468_key_metrics_comparison.csv"
 MAIN_SUMMARY_CSVS = {
@@ -55,7 +57,7 @@ class ScanSpec:
     period_min: float
     period_max: float
     panel_title_prefix: str
-    show_near_boundary_interval: bool
+    inspection_interval: tuple[float, float, str] | None
 
 
 MAIN_SCAN = ScanSpec(
@@ -63,14 +65,22 @@ MAIN_SCAN = ScanSpec(
     period_min=MAIN_PERIOD_MIN,
     period_max=MAIN_PERIOD_MAX,
     panel_title_prefix="Main-scan",
-    show_near_boundary_interval=True,
+    inspection_interval=(
+        NEAR_BOUNDARY_MIN,
+        NEAR_BOUNDARY_MAX,
+        "Near-boundary inspection interval",
+    ),
 )
 REFINED_SCAN = ScanSpec(
     figure_path=REFINED_FIGURE_PATH,
     period_min=REFINED_PERIOD_MIN,
     period_max=REFINED_PERIOD_MAX,
     panel_title_prefix="Refined short-period",
-    show_near_boundary_interval=False,
+    inspection_interval=(
+        LOWER_BOUNDARY_MIN,
+        LOWER_BOUNDARY_MAX,
+        "Lower-boundary inspection interval",
+    ),
 )
 
 
@@ -186,15 +196,16 @@ def add_curves(ax: plt.Axes, summaries: dict[int, pd.DataFrame], column: str) ->
         )
 
 
-def add_near_boundary_interval(ax: plt.Axes) -> None:
-    """Mark the main-scan lower-boundary inspection interval."""
+def add_inspection_interval(ax: plt.Axes, interval: tuple[float, float, str]) -> None:
+    """Mark a lightly shaded short-period inspection interval."""
+    period_min, period_max, label = interval
     ax.axvspan(
-        NEAR_BOUNDARY_MIN,
-        NEAR_BOUNDARY_MAX,
+        period_min,
+        period_max,
         color="0.75",
-        alpha=0.35,
+        alpha=0.18,
         linewidth=0.0,
-        label="Near-boundary inspection interval",
+        label=label,
     )
 
 
@@ -208,9 +219,9 @@ def save_combined_figure(summaries: dict[int, pd.DataFrame], spec: ScanSpec) -> 
     add_curves(axes[0], plot_data, "center_mean_abs")
     add_curves(axes[1], plot_data, "center_max_abs")
 
-    if spec.show_near_boundary_interval:
-        add_near_boundary_interval(axes[0])
-        add_near_boundary_interval(axes[1])
+    if spec.inspection_interval is not None:
+        add_inspection_interval(axes[0], spec.inspection_interval)
+        add_inspection_interval(axes[1], spec.inspection_interval)
 
     axes[0].set_title(r"(a) Mean central response, $A_{c,\mathrm{mean}}$")
     axes[1].set_title(r"(b) Maximum central response, $A_{c,\max}$")
@@ -241,9 +252,9 @@ def write_captions() -> None:
     """Write the updated Section 3.1 figure caption draft."""
     captions = """# Updated Section 3.1 figure caption drafts
 
-Figure X. Main-scan central responses of the fixed circular-cylinder ring arrays with N = 4, 6, and 8 over T = 0.90–2.00 s with ΔT = 0.01 s: (a) mean central response A_c,mean and (b) maximum central response A_c,max. Both quantities were evaluated from the five central probes and are expressed as incident-amplitude-normalized frequency-domain complex-amplitude magnitudes. Peaks located near the lower scan boundary are treated cautiously because shorter periods are not resolved in the main scan.
+Figure X. Main-scan central responses of the fixed circular-cylinder ring arrays with N = 4, 6, and 8 over T = 0.90–2.00 s with ΔT = 0.01 s: (a) mean central response A_c,mean and (b) maximum central response A_c,max. Both quantities were evaluated from the five predefined central probes P0–P4 and are expressed as incident-amplitude-normalized magnitudes of the frequency-domain complex free-surface response. Because the main scan starts at T = 0.90 s, peak values close to this lower-period boundary are interpreted cautiously and were further examined using the refined short-period scan.
 
-Figure Y. Refined short-period central responses of the fixed circular-cylinder ring arrays with N = 4, 6, and 8 over T = 0.85–1.05 s with ΔT = 0.005 s: (a) mean central response A_c,mean and (b) maximum central response A_c,max. The refined scan was used to identify short-period peak locations near the lower boundary of the main scan. All amplitudes are incident-amplitude-normalized frequency-domain complex-amplitude magnitudes.
+Figure Y. Refined short-period central responses of the fixed circular-cylinder ring arrays with N = 4, 6, and 8 over T = 0.85–1.05 s with ΔT = 0.005 s: (a) mean central response A_c,mean and (b) maximum central response A_c,max. The refined scan was introduced to reassess the short-period peak locations near the lower-period boundary of the main scan. All amplitudes are expressed as incident-amplitude-normalized magnitudes of the frequency-domain complex free-surface response. The shaded interval marks T = 0.85–0.87 s, where peak locations are interpreted cautiously.
 """
     CAPTIONS_PATH.write_text(captions, encoding="utf-8")
     print(f"Generated: {CAPTIONS_PATH}")
