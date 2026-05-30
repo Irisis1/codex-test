@@ -214,7 +214,7 @@ def save_combined_figure(summaries: dict[int, pd.DataFrame], spec: ScanSpec) -> 
     check_period_coverage(summaries, spec.period_min, spec.period_max, spec.panel_title_prefix)
     plot_data = filter_period_window(summaries, spec.period_min, spec.period_max)
 
-    fig, axes = plt.subplots(2, 1, figsize=(7.2, 7.2), sharex=True, constrained_layout=True)
+    fig, axes = plt.subplots(2, 1, figsize=(7.2, 7.2), sharex=True)
 
     add_curves(axes[0], plot_data, "center_mean_abs")
     add_curves(axes[1], plot_data, "center_max_abs")
@@ -234,14 +234,21 @@ def save_combined_figure(summaries: dict[int, pd.DataFrame], spec: ScanSpec) -> 
         ax.grid(True, alpha=0.30, linewidth=0.7)
 
     handles, labels = axes[0].get_legend_handles_labels()
-    unique_handles: list[object] = []
-    unique_labels: list[str] = []
-    for handle, label in zip(handles, labels):
-        if label not in unique_labels:
-            unique_handles.append(handle)
-            unique_labels.append(label)
-    axes[0].legend(unique_handles, unique_labels, frameon=False, ncols=2, loc="best")
-    axes[1].legend().remove()
+    handles_by_label = dict(zip(labels, handles))
+    legend_labels = [f"N={n}" for n in ARRAY_SIZES]
+    if spec.inspection_interval is not None:
+        legend_labels.append(spec.inspection_interval[2])
+    legend_handles = [handles_by_label[label] for label in legend_labels]
+
+    fig.tight_layout(rect=[0, 0, 1, 0.94])
+    fig.legend(
+        legend_handles,
+        legend_labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.02),
+        ncol=4,
+        frameon=False,
+    )
 
     fig.savefig(spec.figure_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
