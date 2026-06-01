@@ -333,6 +333,7 @@ def _save_grouped_bar_figure(
     data: dict[int, tuple[float, float, float, float, float]],
     ylabel: str,
     output_path: Path,
+    y_limits: tuple[float, float] | None = None,
 ) -> None:
     """Save a P0-P4 grouped bar chart for N=4, 6, and 8."""
     probes = ("P0", "P1", "P2", "P3", "P4")
@@ -353,6 +354,8 @@ def _save_grouped_bar_figure(
     ax.set_xticks(x_positions, probes)
     ax.set_xlabel("Central probe")
     ax.set_ylabel(ylabel)
+    if y_limits is not None:
+        ax.set_ylim(*y_limits)
     ax.grid(True, axis="y", color="0.88", linewidth=0.8)
     ax.legend(frameon=False)
     fig.savefig(output_path, dpi=300)
@@ -381,6 +384,7 @@ def generate_figures() -> None:
         },
         "Peak period, T (s)",
         PEAK_PERIOD_FIGURE_PATH,
+        y_limits=(0.85, 1.07),
     )
 
 
