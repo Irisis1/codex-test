@@ -1,0 +1,4 @@
+array_size,A_c_mean_peak_period_s,A_c_mean_peak,A_c_max_peak_period_s,A_c_max_peak,R_loc_peak_max_over_mean,peak_period_offset_max_minus_mean_s
+4,0.955,1.139445,0.870,1.184359,1.039417,-0.085
+6,0.970,1.238387,0.905,1.285190,1.037794,-0.065
+8,0.995,1.355463,0.945,1.418618,1.046593,-0.050
