@@ -95,7 +95,7 @@ REVIEWED_TABLE_ROWS_WHEN_SOURCE_DATA_ABSENT = [
         "T_S_rear_front_max_s": "0.90",
         "S_rear_front_min": "0.985718",
         "T_S_rear_front_min_s": "1.49-1.50",
-        "boundary_note": "lower boundary: A_rear_max, S_rear_front_max; upper boundary: A_rear_min",
+        "boundary_note": "near lower boundary: A_rear_max, S_rear_front_max; upper boundary: A_rear_min",
     },
     {
         "N": "6",
@@ -111,7 +111,7 @@ REVIEWED_TABLE_ROWS_WHEN_SOURCE_DATA_ABSENT = [
         "T_S_rear_front_max_s": "0.90",
         "S_rear_front_min": "0.98017",
         "T_S_rear_front_min_s": "1.49-1.50",
-        "boundary_note": "lower boundary: A_rear_max, S_rear_front_max; upper boundary: A_rear_min",
+        "boundary_note": "near lower boundary: A_front_min, A_rear_max, S_rear_front_max; upper boundary: A_rear_min",
     },
     {
         "N": "8",
@@ -127,7 +127,7 @@ REVIEWED_TABLE_ROWS_WHEN_SOURCE_DATA_ABSENT = [
         "T_S_rear_front_max_s": "0.90",
         "S_rear_front_min": "0.974681",
         "T_S_rear_front_min_s": "1.49-1.50",
-        "boundary_note": "lower boundary: A_rear_max, S_rear_front_max; upper boundary: A_rear_min",
+        "boundary_note": "near lower boundary: A_front_min, A_rear_max, S_rear_front_max; upper boundary: A_rear_min",
     },
 ]
 
@@ -274,7 +274,7 @@ def write_table(summary_series: dict[int, SeriesData]) -> list[dict[str, str]]:
                 upper_boundary_terms.append(label)
         boundary_notes = []
         if lower_boundary_terms:
-            boundary_notes.append("lower boundary: " + ", ".join(lower_boundary_terms))
+            boundary_notes.append("near lower boundary: " + ", ".join(lower_boundary_terms))
         if upper_boundary_terms:
             boundary_notes.append("upper boundary: " + ", ".join(upper_boundary_terms))
         rows_out.append(
@@ -415,8 +415,10 @@ def describe_table_rows(table_rows: list[dict[str, str]]) -> str:
         f"of {ratio_max_values} for N=4, N=6, and N=8, respectively. "
         "Its minimum occurs over T=1.49-1.50 s, with corresponding values "
         f"of {ratio_min_values}. A_rear reaches its maximum at T=0.90 s for all three arrays, "
-        "whereas A_rear reaches its minimum at T=2.00 s for all three arrays. Therefore, lower-boundary "
-        "and upper-boundary extrema should be interpreted cautiously."
+        "whereas A_rear reaches its minimum at T=2.00 s for all three arrays. "
+        "The rear-response minima occur at T=2.00 s, which is the upper boundary of the main scan; "
+        "therefore, these minima are treated as upper-boundary extrema rather than confirmed internal minima. "
+        "Therefore, near-lower-boundary and upper-boundary extrema should be interpreted cautiously."
     )
 
 
