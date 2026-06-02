@@ -1,0 +1,13 @@
+filename,N,T,figure_type,recommended_use,status
+figures/field_abs_N8_Tp098.png,8,0.98,field_abs,main,available
+figures/field_abs_N8_Tp100.png,8,1.00,field_abs,main,available
+figures/field_abs_N8_Tp102.png,8,1.02,field_abs,main,available
+figures/field_abs_N8_Tp140.png,8,1.40,field_abs,main,available
+figures/field_abs_N4_Tp098.png,4,0.98,field_abs,optional,available
+figures/field_abs_N4_Tp100.png,4,1.00,field_abs,optional,available
+figures/field_abs_N4_Tp102.png,4,1.02,field_abs,optional,available
+figures/field_abs_N4_Tp140.png,4,1.40,field_abs,optional,available
+figures/field_abs_N6_Tp098.png,6,0.98,field_abs,optional,available
+figures/field_abs_N6_Tp100.png,6,1.00,field_abs,optional,available
+figures/field_abs_N6_Tp102.png,6,1.02,field_abs,optional,available
+figures/field_abs_N6_Tp140.png,6,1.40,field_abs,optional,available
