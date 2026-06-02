@@ -1,1 +1,4 @@
 N,A_front_max,T_A_front_max_s,A_front_min,T_A_front_min_s,A_rear_max,T_A_rear_max_s,A_rear_min,T_A_rear_min_s,S_rear_front_max,T_S_rear_front_max_s,S_rear_front_min,T_S_rear_front_min_s,boundary_note
+4,,,,,,0.90,,2.00,1.08601,0.90,0.985718,1.49-1.50,"lower boundary: A_rear_max, S_rear_front_max; upper boundary: A_rear_min"
+6,,,,,,0.90,,2.00,1.20642,0.90,0.98017,1.49-1.50,"lower boundary: A_rear_max, S_rear_front_max; upper boundary: A_rear_min"
+8,,,,,,0.90,,2.00,1.30334,0.90,0.974681,1.49-1.50,"lower boundary: A_rear_max, S_rear_front_max; upper boundary: A_rear_min"
